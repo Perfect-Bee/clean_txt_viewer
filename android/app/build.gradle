@@ -7,8 +7,11 @@ plugins {
 
 android {
     namespace = "com.example.clean_txt_viewer"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // JDK 조합이 Android SDK 35 처리 중 실패함 : SDK flutter.compileSdkVersion
+    // 35로 변경
+    compileSdk = 35
+    // 권장설정 수정 : flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
