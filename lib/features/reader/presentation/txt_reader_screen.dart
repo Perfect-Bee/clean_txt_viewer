@@ -28,7 +28,6 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
   List<String> _lines = const [];
 
   bool _loading = false;
-  bool _loadingMore = false;
   bool _selectable = false;
   double _fontSize = 15;
 
@@ -40,22 +39,32 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
   @override
   void initState() {
     super.initState();
-
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients) return;
-
-      final position = _scrollController.position;
-
-      if (position.pixels >= position.maxScrollExtent - 800) {
-        _loadNextPage();
-      }
-    });
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final fileInfo = _fileInfo;
+    if (fileInfo == null) return;
+
+    if (_loading) return;
+    if (_pageIndex >= fileInfo.pageCount - 1) return;
+
+    final position = _scrollController.position;
+
+    if (position.maxScrollExtent <= 0) return;
+
+    if (position.pixels >= position.maxScrollExtent - 80) {
+      _showPage(_pageIndex + 1, resetScroll: true);
+    }
   }
 
   Future<void> _pickAndOpen() async {
@@ -131,8 +140,13 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
         _loading = false;
       });
 
-      if (resetScroll && _scrollController.hasClients) {
-        _scrollController.jumpTo(0);
+      if (resetScroll) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (!_scrollController.hasClients) return;
+
+          _scrollController.jumpTo(0);
+        });
       }
 
       _pageReader.prefetchAround(
@@ -146,51 +160,6 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
         _loading = false;
         _error = '페이지를 읽을 수 없습니다.\n$e';
       });
-    }
-  }
-
-  Future<void> _loadNextPage() async {
-    final fileInfo = _fileInfo;
-
-    if (fileInfo == null) return;
-    if (_loading) return;
-    if (_loadingMore) return;
-    if (_pageIndex >= fileInfo.pageCount - 1) return;
-
-    _loadingMore = true;
-
-    try {
-      final nextPage = _pageIndex + 1;
-      final version = _fileVersion;
-
-      final newLines = await _pageReader.readPage(
-        fileInfo: fileInfo,
-        pageIndex: nextPage,
-      );
-
-      if (!mounted || version != _fileVersion) return;
-
-      setState(() {
-        _pageIndex = nextPage;
-        _previewPageIndex = nextPage;
-        _lines = [
-          ..._lines,
-          ...newLines,
-        ];
-      });
-
-      _pageReader.prefetchAround(
-        fileInfo: fileInfo,
-        pageIndex: nextPage,
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _error = '다음 페이지를 읽을 수 없습니다.\n$e';
-      });
-    } finally {
-      _loadingMore = false;
     }
   }
 
@@ -299,7 +268,7 @@ class _TxtReaderScreenState extends State<TxtReaderScreen> {
           selectable: _selectable,
           scrollController: _scrollController,
         ),
-        if (_loading || _loadingMore)
+        if (_loading)
           const Align(
             alignment: Alignment.topCenter,
             child: LinearProgressIndicator(minHeight: 2),
